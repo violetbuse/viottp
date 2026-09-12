@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@theme {
+  /* Deep-black / violet design system. Every surface, border and text
+     color in the app should come from these tokens rather than raw
+     Tailwind grays, so the palette stays cohesive as the UI grows. */
+  --color-base: #030204;      /* app background, deepest layer */
+  --color-panel: #09070d;     /* sidebar, tab bar, code blocks */
+  --color-panel-2: #120f18;   /* inputs, default buttons, table rows */
+  --color-panel-3: #1c1725;   /* hovered/elevated surfaces, menus */
+  --color-panel-4: #271f31;   /* active/pressed surfaces */
+
+  --color-line: #211b2b;      /* default hairline borders */
+  --color-line-2: #332a42;    /* stronger borders, input outlines */
+
+  --color-ink: #f1eef8;       /* primary text */
+  --color-ink-2: #ada6bd;     /* secondary text */
+  --color-ink-3: #746c85;     /* muted / placeholder text */
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-base);
+  color: var(--color-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(139, 92, 246, 0.4);
+  color: var(--color-ink);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #3d3350;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #55447a;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cm-editor {
+  height: 100%;
+}
+.cm-scroller {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 13px !important;
+}
