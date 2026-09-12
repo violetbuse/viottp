@@ -10,11 +10,17 @@ function App() {
   const activeTabId = useTabsStore((s) => s.activeTabId);
   const openNewTab = useTabsStore((s) => s.openNewTab);
   const closeTab = useTabsStore((s) => s.closeTab);
+  const hydrateTabs = useTabsStore((s) => s.hydrateTabs);
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
 
   useEffect(() => {
-    if (tabs.length === 0) openNewTab("http");
+    (async () => {
+      const restored = await hydrateTabs();
+      if (!restored && useTabsStore.getState().tabs.length === 0) {
+        openNewTab("http");
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

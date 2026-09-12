@@ -9,6 +9,8 @@ import type {
   KeyValueEntry,
   SavedRequest,
   SavedRequestKind,
+  Tab,
+  UpsertTabInput,
   WsFrontendEvent,
   WsMessage,
   WsMessageTypeInput,
@@ -77,6 +79,72 @@ export function draftsEqual(a: RequestDraft, b: RequestDraft): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+function draftFromTabRow(row: Tab): RequestDraft {
+  return {
+    kind: row.kind,
+    name: row.name,
+    method: row.method,
+    url: row.url,
+    headers: row.headers.length ? row.headers : [{ key: "", value: "", enabled: true }],
+    queryParams: row.query_params.length
+      ? row.query_params
+      : [{ key: "", value: "", enabled: true }],
+    body: row.body ?? "",
+    bodyType: row.body_type ?? (row.kind === "http" ? "json" : "none"),
+    wsInitMessage: row.ws_init_message ?? "",
+  };
+}
+
+function responseFromTabRow(row: Tab): HistoryRequest {
+  return {
+    id: row.id,
+    saved_request_id: row.saved_request_id,
+    environment_id: null,
+    method: row.method,
+    url: row.url,
+    request_headers: row.headers,
+    request_body: row.body,
+    status_code: row.status_code,
+    status_text: row.status_text,
+    response_headers: row.response_headers,
+    response_body: row.response_body,
+    response_body_encoding: row.response_body_encoding,
+    response_size_bytes: row.response_size_bytes,
+    duration_ms: row.duration_ms,
+    error_message: row.error_message,
+    sent_at: row.updated_at,
+  };
+}
+
+function tabToUpsertInput(tab: TabState, sortOrder: number): UpsertTabInput {
+  const resp = tab.draft.kind === "http" ? tab.httpResponse : null;
+  return {
+    id: tab.id,
+    kind: tab.draft.kind,
+    saved_request_id: tab.savedRequestId,
+    sort_order: sortOrder,
+    name: tab.draft.name,
+    method: tab.draft.method,
+    url: tab.draft.url,
+    headers: tab.draft.headers,
+    query_params: tab.draft.queryParams,
+    body: tab.draft.body,
+    body_type: tab.draft.bodyType,
+    ws_init_message: tab.draft.wsInitMessage,
+    status_code: resp?.status_code ?? null,
+    status_text: resp?.status_text ?? null,
+    response_headers: resp?.response_headers ?? [],
+    response_body: resp?.response_body ?? null,
+    response_body_encoding: resp?.response_body_encoding ?? "text",
+    response_size_bytes: resp?.response_size_bytes ?? null,
+    duration_ms: resp?.duration_ms ?? null,
+    error_message: resp?.error_message ?? null,
+  };
+}
+
+const draftPersistTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const PERSIST_DEBOUNCE_MS = 500;
+
 interface TabsState {
   tabs: TabState[];
   activeTabId: string | null;
@@ -93,6 +161,8 @@ interface TabsState {
   connectWs: (id: string, resolved: { url: string; headers: KeyValueEntry[] }, environmentId: string | null) => Promise<void>;
   sendWsMessage: (id: string, payload: string, messageType: WsMessageTypeInput) => Promise<void>;
   disconnectWs: (id: string) => Promise<void>;
+
+  hydrateTabs: () => Promise<boolean>;
 }
 
 let listenerStarted = false;
@@ -127,6 +197,33 @@ export const useTabsStore = create<TabsState>((set, get) => {
     });
   }
 
+  function persistTab(id: string) {
+    const index = get().tabs.findIndex((t) => t.id === id);
+    if (index === -1) return;
+    const tab = get().tabs[index];
+    api.upsertTab(tabToUpsertInput(tab, index)).catch(() => {});
+  }
+
+  function schedulePersist(id: string) {
+    const existing = draftPersistTimers.get(id);
+    if (existing) clearTimeout(existing);
+    draftPersistTimers.set(
+      id,
+      setTimeout(() => {
+        draftPersistTimers.delete(id);
+        persistTab(id);
+      }, PERSIST_DEBOUNCE_MS),
+    );
+  }
+
+  function cancelPendingPersist(id: string) {
+    const existing = draftPersistTimers.get(id);
+    if (existing) {
+      clearTimeout(existing);
+      draftPersistTimers.delete(id);
+    }
+  }
+
   return {
     tabs: [],
     activeTabId: null,
@@ -150,6 +247,8 @@ export const useTabsStore = create<TabsState>((set, get) => {
         wsError: null,
       };
       set({ tabs: [...get().tabs, tab], activeTabId: id });
+      persistTab(id);
+      api.setActiveTabId(id).catch(() => {});
       return id;
     },
 
@@ -157,6 +256,7 @@ export const useTabsStore = create<TabsState>((set, get) => {
       const existing = get().tabs.find((t) => t.savedRequestId === saved.id);
       if (existing) {
         set({ activeTabId: existing.id });
+        api.setActiveTabId(existing.id).catch(() => {});
         return;
       }
       const id = crypto.randomUUID();
@@ -176,27 +276,37 @@ export const useTabsStore = create<TabsState>((set, get) => {
         wsError: null,
       };
       set({ tabs: [...get().tabs, tab], activeTabId: id });
+      persistTab(id);
+      api.setActiveTabId(id).catch(() => {});
     },
 
     closeTab: (id) => {
+      cancelPendingPersist(id);
       const tab = get().tabs.find((t) => t.id === id);
       if (tab?.wsConnectionId) {
         api.wsDisconnect(tab.wsConnectionId).catch(() => {});
       }
       const remaining = get().tabs.filter((t) => t.id !== id);
       const wasActive = get().activeTabId === id;
+      const nextActiveId = wasActive ? (remaining[remaining.length - 1]?.id ?? null) : get().activeTabId;
       set({
         tabs: remaining,
-        activeTabId: wasActive ? (remaining[remaining.length - 1]?.id ?? null) : get().activeTabId,
+        activeTabId: nextActiveId,
       });
+      api.deleteTab(id).catch(() => {});
+      if (wasActive) api.setActiveTabId(nextActiveId).catch(() => {});
     },
 
-    setActiveTab: (id) => set({ activeTabId: id }),
+    setActiveTab: (id) => {
+      set({ activeTabId: id });
+      api.setActiveTabId(id).catch(() => {});
+    },
 
     updateDraft: (id, patch) => {
       set({
         tabs: get().tabs.map((t) => (t.id === id ? { ...t, draft: { ...t.draft, ...patch } } : t)),
       });
+      schedulePersist(id);
     },
 
     markSaved: (id, saved) => {
@@ -206,6 +316,8 @@ export const useTabsStore = create<TabsState>((set, get) => {
           t.id === id ? { ...t, savedRequestId: saved.id, draft, baseline: draft } : t,
         ),
       });
+      cancelPendingPersist(id);
+      persistTab(id);
     },
 
     sendHttp: async (id, resolved, environmentId) => {
@@ -241,6 +353,7 @@ export const useTabsStore = create<TabsState>((set, get) => {
           ),
         });
       }
+      persistTab(id);
       useHistoryStore.getState().refreshHttp();
     },
 
@@ -308,6 +421,55 @@ export const useTabsStore = create<TabsState>((set, get) => {
       set({
         tabs: get().tabs.map((t) => (t.id === id ? { ...t, wsStatus: "closed" } : t)),
       });
+    },
+
+    hydrateTabs: async () => {
+      try {
+        const [rows, activeId] = await Promise.all([api.listTabs(), api.getActiveTabId()]);
+        if (rows.length === 0) return false;
+
+        const tabs: TabState[] = [];
+        for (const row of rows) {
+          const draft = draftFromTabRow(row);
+          let savedRequestId = row.saved_request_id;
+          let baseline: RequestDraft;
+          if (savedRequestId) {
+            try {
+              const saved = await api.getSavedRequest(savedRequestId);
+              baseline = draftFromSaved(saved);
+            } catch {
+              savedRequestId = null;
+              baseline = blankDraft(draft.kind);
+            }
+          } else {
+            baseline = blankDraft(draft.kind);
+          }
+          const hasResponse =
+            row.status_code !== null || row.response_body !== null || row.error_message !== null;
+
+          tabs.push({
+            id: row.id,
+            savedRequestId,
+            draft,
+            baseline,
+            httpResponse: draft.kind === "http" && hasResponse ? responseFromTabRow(row) : null,
+            httpLoading: false,
+            httpError: null,
+            wsConnectionId: null,
+            wsSessionId: null,
+            wsStatus: "idle",
+            wsMessages: [],
+            wsError: null,
+          });
+        }
+
+        const resolvedActiveId =
+          activeId && tabs.some((t) => t.id === activeId) ? activeId : (tabs[tabs.length - 1]?.id ?? null);
+        set({ tabs, activeTabId: resolvedActiveId });
+        return true;
+      } catch {
+        return false;
+      }
     },
   };
 });

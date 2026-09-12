@@ -63,6 +63,54 @@ export interface SavedRequestInput {
   ws_init_message: string | null;
 }
 
+export interface Tab {
+  id: string;
+  kind: SavedRequestKind;
+  saved_request_id: string | null;
+  sort_order: number;
+  name: string;
+  method: string;
+  url: string;
+  headers: KeyValueEntry[];
+  query_params: KeyValueEntry[];
+  body: string | null;
+  body_type: BodyType | null;
+  ws_init_message: string | null;
+  status_code: number | null;
+  status_text: string | null;
+  response_headers: KeyValueEntry[];
+  response_body: string | null;
+  response_body_encoding: "text" | "base64";
+  response_size_bytes: number | null;
+  duration_ms: number | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpsertTabInput {
+  id: string;
+  kind: SavedRequestKind;
+  saved_request_id: string | null;
+  sort_order: number;
+  name: string;
+  method: string;
+  url: string;
+  headers: KeyValueEntry[];
+  query_params: KeyValueEntry[];
+  body: string | null;
+  body_type: BodyType | null;
+  ws_init_message: string | null;
+  status_code: number | null;
+  status_text: string | null;
+  response_headers: KeyValueEntry[];
+  response_body: string | null;
+  response_body_encoding: "text" | "base64";
+  response_size_bytes: number | null;
+  duration_ms: number | null;
+  error_message: string | null;
+}
+
 export interface HistoryRequest {
   id: string;
   saved_request_id: string | null;

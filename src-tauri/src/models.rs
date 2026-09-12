@@ -147,6 +147,116 @@ pub struct SavedRequestInput {
     pub ws_init_message: Option<String>,
 }
 
+// ---------- Tabs ----------
+
+#[derive(sqlx::FromRow)]
+pub struct TabRow {
+    pub id: String,
+    pub kind: String,
+    pub saved_request_id: Option<String>,
+    pub sort_order: i64,
+    pub name: String,
+    pub method: String,
+    pub url: String,
+    pub headers: String,
+    pub query_params: String,
+    pub body: Option<String>,
+    pub body_type: Option<String>,
+    pub ws_init_message: Option<String>,
+    pub status_code: Option<i64>,
+    pub status_text: Option<String>,
+    pub response_headers: Option<String>,
+    pub response_body: Option<String>,
+    pub response_body_encoding: String,
+    pub response_size_bytes: Option<i64>,
+    pub duration_ms: Option<i64>,
+    pub error_message: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Tab {
+    pub id: String,
+    pub kind: SavedRequestKind,
+    pub saved_request_id: Option<String>,
+    pub sort_order: i64,
+    pub name: String,
+    pub method: String,
+    pub url: String,
+    pub headers: Vec<KeyValueEntry>,
+    pub query_params: Vec<KeyValueEntry>,
+    pub body: Option<String>,
+    pub body_type: Option<String>,
+    pub ws_init_message: Option<String>,
+    pub status_code: Option<i64>,
+    pub status_text: Option<String>,
+    pub response_headers: Vec<KeyValueEntry>,
+    pub response_body: Option<String>,
+    pub response_body_encoding: String,
+    pub response_size_bytes: Option<i64>,
+    pub duration_ms: Option<i64>,
+    pub error_message: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+impl From<TabRow> for Tab {
+    fn from(row: TabRow) -> Self {
+        Tab {
+            id: row.id,
+            kind: SavedRequestKind::from_str(&row.kind),
+            saved_request_id: row.saved_request_id,
+            sort_order: row.sort_order,
+            name: row.name,
+            method: row.method,
+            url: row.url,
+            headers: parse_kv_list(&row.headers),
+            query_params: parse_kv_list(&row.query_params),
+            body: row.body,
+            body_type: row.body_type,
+            ws_init_message: row.ws_init_message,
+            status_code: row.status_code,
+            status_text: row.status_text,
+            response_headers: row
+                .response_headers
+                .map(|h| parse_kv_list(&h))
+                .unwrap_or_default(),
+            response_body: row.response_body,
+            response_body_encoding: row.response_body_encoding,
+            response_size_bytes: row.response_size_bytes,
+            duration_ms: row.duration_ms,
+            error_message: row.error_message,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpsertTabInput {
+    pub id: String,
+    pub kind: SavedRequestKind,
+    pub saved_request_id: Option<String>,
+    pub sort_order: i64,
+    pub name: String,
+    pub method: String,
+    pub url: String,
+    pub headers: Vec<KeyValueEntry>,
+    pub query_params: Vec<KeyValueEntry>,
+    pub body: Option<String>,
+    pub body_type: Option<String>,
+    pub ws_init_message: Option<String>,
+    pub status_code: Option<i64>,
+    pub status_text: Option<String>,
+    pub response_headers: Vec<KeyValueEntry>,
+    pub response_body: Option<String>,
+    pub response_body_encoding: String,
+    pub response_size_bytes: Option<i64>,
+    pub duration_ms: Option<i64>,
+    pub error_message: Option<String>,
+}
+
 // ---------- HTTP history ----------
 
 #[derive(sqlx::FromRow)]

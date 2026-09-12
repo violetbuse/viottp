@@ -8,6 +8,8 @@ import type {
   SavedRequest,
   SavedRequestInput,
   SendHttpRequestInput,
+  Tab,
+  UpsertTabInput,
   UpsertVariableInput,
   Variable,
   WsConnectInput,
@@ -53,6 +55,14 @@ export const updateSavedRequest = (id: string, input: SavedRequestInput) =>
 export const deleteSavedRequest = (id: string) => invoke<void>("delete_saved_request", { id });
 export const reorderSavedRequests = (orderedIds: string[]) =>
   invoke<void>("reorder_saved_requests", { orderedIds });
+
+// ---------- Tabs ----------
+
+export const listTabs = () => invoke<Tab[]>("list_tabs");
+export const upsertTab = (input: UpsertTabInput) => invoke<Tab>("upsert_tab", { input });
+export const deleteTab = (id: string) => invoke<void>("delete_tab", { id });
+export const setActiveTabId = (id: string | null) => invoke<void>("set_active_tab_id", { id });
+export const getActiveTabId = () => invoke<string | null>("get_active_tab_id");
 
 // ---------- HTTP ----------
 
